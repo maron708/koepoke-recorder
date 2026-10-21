@@ -73,7 +73,7 @@
       </section>
     </section>
     <footer><span class="footer-dot"></span><span id="footerText">声は先生のGoogleドライブに保存します。</span><button id="reloadButton" class="text-button" hidden>設定を読み直す</button></footer>
-    <details class="diagnostics"><summary>先生へ：マイクと接続の確認</summary><p>録音できない場合の確認用です。アカウントや音声は表示しません。</p><pre id="diagnostics"></pre></details>
+    <details class="diagnostics"><summary>先生へ：マイクと接続の確認</summary><p>録音できない場合の確認用です。アカウントや音声は表示しません。</p><pre id="diagnostics"></pre><button class="secondary" id="micCheck" hidden style="padding:10px;border-radius:8px">マイクの接続だけ確認（保存しません）</button></details>
   </main>
   <script>
 var Koepoke = (() => {
@@ -425,7 +425,7 @@ self.onmessage=function(e){try{const m=e.data;if(m.type==='init'){self.encoder=n
 (() => {
   'use strict';
   const $=id=>document.getElementById(id);
-  const names=['app','lessonTitle','stateTag','groupSelect','otherName','otherField','recordButton','recordLabel','micIcon','timer','wave','status','notice','progressWrap','progress','progressText','playback','playbackTitle','fileName','player','retryButton','downloadButton','nextButton','reloadButton','diagnostics'];
+  const names=['app','lessonTitle','stateTag','groupSelect','otherName','otherField','recordButton','recordLabel','micIcon','timer','wave','status','notice','progressWrap','progress','progressText','playback','playbackTitle','fileName','player','retryButton','downloadButton','nextButton','reloadButton','diagnostics','micCheck'];
   const ui=Object.fromEntries(names.map(n=>[n,$(n)]));
   let state='loading',config=null,session=null,stream=null,context=null,source=null,filter=null,processor=null,mute=null,worker=null,workerUrl=null;
   let chunks=[],blob=null,blobUrl=null,startedAt=0,timerId=null,watchdog=null,encodedSamples=0,pending=0,peak=0,unsaved=false,downloaded=false,finishResolve=null;
@@ -440,7 +440,7 @@ self.onmessage=function(e){try{const m=e.data;if(m.type==='init'){self.encoder=n
     });
   }
   function setState(next,message) {
-    state=next;ui.app.dataset.state=next;ui.status.textContent=message;
+    state=next;ui.app.dataset.state=next;ui.status.textContent=message;ui.micCheck.disabled=next!=='idle';
     const tags={loading:'準備中',idle:'録音の準備',starting:'マイクを確認中',recording:'● 録音中',finishing:'音声を整理中',saving:'保存中',saved:'✓ 保存できました',failed:'保存を確認してね',blocked:'先生に知らせてね'};
     ui.stateTag.textContent=tags[next];
     const locked=next!=='idle';ui.groupSelect.disabled=locked;ui.otherName.disabled=locked;
@@ -467,7 +467,7 @@ self.onmessage=function(e){try{const m=e.data;if(m.type==='init'){self.encoder=n
   async function load(){
     setState('loading','設定を読み込んでいます。');notice('');diagnostics();
     const problem=Koepoke.micProblem(micInfo());
-    try{config=await rpc('getConfig');ui.lessonTitle.textContent=config.unit;}
+    try{config=await rpc('getConfig');ui.lessonTitle.textContent=config.unit;ui.micCheck.hidden=!config.isTeacher;}
     catch(e){ui.lessonTitle.textContent='先生の設定を確認してね';setState('blocked','設定を読み込めませんでした。先生に知らせてね。');diagnostics('設定の接続: 失敗');if(problem)notice(problem);return;}
     if(problem){setState('blocked',problem);notice('先生へ：GASのページ側で拒否されている場合、端末のマイク設定だけでは解決しません。');return;}
     setState('idle','はじめに、班を選んでね。');ready();
@@ -588,6 +588,7 @@ self.onmessage=function(e){try{const m=e.data;if(m.type==='init'){self.encoder=n
     if(unsaved&&!window.confirm('保存はまだ確認できていません。ダウンロードした音声が開けることを確かめましたか？'))return;
     ui.player.pause();ui.player.removeAttribute('src');ui.player.load();if(blobUrl)URL.revokeObjectURL(blobUrl);blobUrl=null;blob=null;session=null;unsaved=false;downloaded=false;ui.playback.hidden=true;ui.timer.textContent='00:00';notice('');await load();
   }
+  ui.micCheck.addEventListener('click',async()=>{if(state!=='idle')return;ui.micCheck.disabled=true;let testStream;try{testStream=await navigator.mediaDevices.getUserMedia({audio:true});diagnostics('マイク取得: 成功（音声は保存していません）');}catch(error){diagnostics('マイク取得: '+error.name);}finally{if(testStream)testStream.getTracks().forEach(t=>t.stop());ui.micCheck.disabled=state!=='idle';}});
   ui.groupSelect.addEventListener('change',()=>{ready();if(ui.groupSelect.value==='__other')ui.otherName.focus();});
   ui.otherName.addEventListener('input',ready);ui.recordButton.addEventListener('click',()=>state==='recording'?stop():start());
   ui.retryButton.addEventListener('click',save);ui.downloadButton.addEventListener('click',download);ui.nextButton.addEventListener('click',next);ui.reloadButton.addEventListener('click',load);
